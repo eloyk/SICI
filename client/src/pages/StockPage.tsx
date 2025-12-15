@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import StockTable from "@/components/StockTable";
-import type { Warehouse, Product, Stock } from "@shared/schema";
+import type { Warehouse, Product, Stock, Category } from "@shared/schema";
 import { Loader2 } from "lucide-react";
 
 interface StockWithDetails extends Stock {
   product: Product;
   warehouse: Warehouse;
+  category?: Category | null;
 }
 
 export default function StockPage() {
@@ -23,7 +24,7 @@ export default function StockPage() {
     id: item.id,
     productCode: item.product.code,
     productName: item.product.name,
-    category: "",
+    category: item.category?.name || "Sin categoría",
     warehouse: item.warehouse.name,
     warehouseId: item.warehouse.id,
     currentStock: item.quantity,

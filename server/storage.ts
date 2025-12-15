@@ -9,6 +9,7 @@ import {
   type Stock, type InsertStock,
   type Movement, type InsertMovement,
   type MovementDetail, type InsertMovementDetail,
+  Category as CategoryType,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -157,8 +158,8 @@ export class DatabaseStorage implements IStorage {
     return true;
   }
 
-  async getStock(warehouseId?: string): Promise<(Stock & { product: Product; warehouse: Warehouse })[]> {
-    let query = db
+  async getStock(warehouseId?: string): Promise<(Stock & { product: Product; warehouse: Warehouse; category?: Category | null })[]> {
+    const baseQuery = db
       .select({
         id: stock.id,
         productId: stock.productId,
@@ -167,31 +168,18 @@ export class DatabaseStorage implements IStorage {
         lastUpdated: stock.lastUpdated,
         product: products,
         warehouse: warehouses,
+        category: categories,
       })
       .from(stock)
       .innerJoin(products, eq(stock.productId, products.id))
       .innerJoin(warehouses, eq(stock.warehouseId, warehouses.id))
-      .where(eq(products.isActive, true));
+      .leftJoin(categories, eq(products.categoryId, categories.id));
 
     if (warehouseId) {
-      const result = await db
-        .select({
-          id: stock.id,
-          productId: stock.productId,
-          warehouseId: stock.warehouseId,
-          quantity: stock.quantity,
-          lastUpdated: stock.lastUpdated,
-          product: products,
-          warehouse: warehouses,
-        })
-        .from(stock)
-        .innerJoin(products, eq(stock.productId, products.id))
-        .innerJoin(warehouses, eq(stock.warehouseId, warehouses.id))
-        .where(and(eq(products.isActive, true), eq(stock.warehouseId, warehouseId)));
-      return result;
+      return await baseQuery.where(and(eq(products.isActive, true), eq(stock.warehouseId, warehouseId)));
     }
 
-    return await query;
+    return await baseQuery.where(eq(products.isActive, true));
   }
 
   async getStockByProduct(productId: string, warehouseId: string): Promise<Stock | undefined> {
