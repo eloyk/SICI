@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2, Save, X } from "lucide-react";
+import { Plus, Trash2, Save, X, Loader2 } from "lucide-react";
+import type { Product, Warehouse } from "@shared/schema";
 
 type MovementType = "entrada" | "salida" | "transferencia" | "ajuste";
 
@@ -35,22 +37,8 @@ interface MovementFormProps {
   type: MovementType;
   onSubmit?: (data: unknown) => void;
   onCancel?: () => void;
+  isPending?: boolean;
 }
-
-// todo: remove mock functionality
-const mockProducts = [
-  { id: "1", name: "Tornillo Hexagonal 1/4" },
-  { id: "2", name: "Tuerca M8" },
-  { id: "3", name: "Arandela Plana 3/8" },
-  { id: "4", name: "Cable Eléctrico 12AWG" },
-  { id: "5", name: "Interruptor Simple" },
-];
-
-const mockWarehouses = [
-  { id: "1", name: "Almacén Central" },
-  { id: "2", name: "Sucursal Norte" },
-  { id: "3", name: "Sucursal Sur" },
-];
 
 const typeLabels: Record<MovementType, string> = {
   entrada: "Entrada de Inventario",
@@ -59,7 +47,7 @@ const typeLabels: Record<MovementType, string> = {
   ajuste: "Ajuste de Inventario",
 };
 
-export default function MovementForm({ type, onSubmit, onCancel }: MovementFormProps) {
+export default function MovementForm({ type, onSubmit, onCancel, isPending }: MovementFormProps) {
   const [lines, setLines] = useState<ProductLine[]>([
     { id: "1", productId: "", productName: "", quantity: 0, unitCost: 0 },
   ]);
@@ -67,6 +55,14 @@ export default function MovementForm({ type, onSubmit, onCancel }: MovementFormP
   const [warehouseDestination, setWarehouseDestination] = useState("");
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
+
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ["/api/products"],
+  });
+
+  const { data: warehouses = [] } = useQuery<Warehouse[]>({
+    queryKey: ["/api/warehouses"],
+  });
 
   const addLine = () => {
     setLines([
@@ -86,8 +82,13 @@ export default function MovementForm({ type, onSubmit, onCancel }: MovementFormP
       lines.map((line) => {
         if (line.id === id) {
           if (field === "productId") {
-            const product = mockProducts.find((p) => p.id === value);
-            return { ...line, productId: String(value), productName: product?.name || "" };
+            const product = products.find((p) => p.id === value);
+            return { 
+              ...line, 
+              productId: String(value), 
+              productName: product?.name || "",
+              unitCost: product?.standardCost ? parseFloat(product.standardCost) : 0,
+            };
           }
           return { ...line, [field]: value };
         }
@@ -99,7 +100,24 @@ export default function MovementForm({ type, onSubmit, onCancel }: MovementFormP
   const total = lines.reduce((sum, line) => sum + line.quantity * line.unitCost, 0);
 
   const handleSubmit = () => {
-    onSubmit?.({ type, warehouse, warehouseDestination, reason, notes, lines, total });
+    const details = lines
+      .filter((line) => line.productId && line.quantity !== 0)
+      .map((line) => ({
+        productId: line.productId,
+        quantity: line.quantity,
+        unitCost: String(Math.abs(line.unitCost)),
+      }));
+
+    onSubmit?.({
+      type,
+      warehouseId: warehouse,
+      warehouseDestinationId: type === "transferencia" ? warehouseDestination : null,
+      reason: reason || null,
+      notes: notes || null,
+      totalValue: String(Math.abs(total)),
+      status: "completed",
+      details,
+    });
   };
 
   return (
@@ -118,7 +136,7 @@ export default function MovementForm({ type, onSubmit, onCancel }: MovementFormP
                 <SelectValue placeholder="Seleccionar almacén" />
               </SelectTrigger>
               <SelectContent>
-                {mockWarehouses.map((wh) => (
+                {warehouses.map((wh) => (
                   <SelectItem key={wh.id} value={wh.id}>
                     {wh.name}
                   </SelectItem>
@@ -135,7 +153,7 @@ export default function MovementForm({ type, onSubmit, onCancel }: MovementFormP
                   <SelectValue placeholder="Seleccionar destino" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockWarehouses.filter((wh) => wh.id !== warehouse).map((wh) => (
+                  {warehouses.filter((wh) => wh.id !== warehouse).map((wh) => (
                     <SelectItem key={wh.id} value={wh.id}>
                       {wh.name}
                     </SelectItem>
@@ -164,7 +182,7 @@ export default function MovementForm({ type, onSubmit, onCancel }: MovementFormP
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <Label>Productos</Label>
             <Button type="button" variant="outline" size="sm" onClick={addLine} data-testid="button-add-line">
               <Plus className="h-4 w-4 mr-2" />
@@ -176,15 +194,11 @@ export default function MovementForm({ type, onSubmit, onCancel }: MovementFormP
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Producto</TableHead>
-                  <TableHead className="w-28">Cantidad</TableHead>
-                  {(type === "entrada" || type === "ajuste") && (
-                    <TableHead className="w-32">Costo Unit.</TableHead>
-                  )}
-                  {(type === "entrada" || type === "ajuste") && (
-                    <TableHead className="w-32 text-right">Subtotal</TableHead>
-                  )}
-                  <TableHead className="w-12" />
+                  <TableHead className="w-[40%]">Producto</TableHead>
+                  <TableHead className="w-[15%]">Cantidad</TableHead>
+                  <TableHead className="w-[20%]">Costo Unit.</TableHead>
+                  <TableHead className="w-[15%] text-right">Subtotal</TableHead>
+                  <TableHead className="w-[10%]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -199,9 +213,9 @@ export default function MovementForm({ type, onSubmit, onCancel }: MovementFormP
                           <SelectValue placeholder="Seleccionar producto" />
                         </SelectTrigger>
                         <SelectContent>
-                          {mockProducts.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name}
+                          {products.map((product) => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.code} - {product.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -210,29 +224,25 @@ export default function MovementForm({ type, onSubmit, onCancel }: MovementFormP
                     <TableCell>
                       <Input
                         type="number"
-                        min={type === "ajuste" ? undefined : 1}
-                        value={line.quantity || ""}
+                        min={1}
+                        value={line.quantity}
                         onChange={(e) => updateLine(line.id, "quantity", Number(e.target.value))}
                         data-testid={`input-quantity-${line.id}`}
                       />
                     </TableCell>
-                    {(type === "entrada" || type === "ajuste") && (
-                      <TableCell>
-                        <Input
-                          type="number"
-                          min={0}
-                          step={0.01}
-                          value={line.unitCost || ""}
-                          onChange={(e) => updateLine(line.id, "unitCost", Number(e.target.value))}
-                          data-testid={`input-cost-${line.id}`}
-                        />
-                      </TableCell>
-                    )}
-                    {(type === "entrada" || type === "ajuste") && (
-                      <TableCell className="text-right font-mono">
-                        ${(line.quantity * line.unitCost).toFixed(2)}
-                      </TableCell>
-                    )}
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={line.unitCost}
+                        onChange={(e) => updateLine(line.id, "unitCost", Number(e.target.value))}
+                        data-testid={`input-cost-${line.id}`}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      ${(line.quantity * line.unitCost).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                    </TableCell>
                     <TableCell>
                       <Button
                         type="button"
@@ -251,34 +261,39 @@ export default function MovementForm({ type, onSubmit, onCancel }: MovementFormP
             </Table>
           </div>
 
-          {(type === "entrada" || type === "ajuste") && (
-            <div className="flex justify-end">
-              <div className="bg-muted px-4 py-2 rounded-md">
-                <span className="text-sm text-muted-foreground mr-4">Total:</span>
-                <span className="text-lg font-bold font-mono">${total.toFixed(2)}</span>
+          <div className="flex justify-end">
+            <div className="text-right">
+              <div className="text-sm text-muted-foreground">Total del Movimiento</div>
+              <div className="text-2xl font-bold font-mono" data-testid="text-total">
+                ${total.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
               </div>
             </div>
-          )}
+          </div>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="notes">Observaciones</Label>
+          <Label htmlFor="notes">Notas / Observaciones</Label>
           <Textarea
             id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Notas adicionales..."
+            placeholder="Notas adicionales sobre el movimiento..."
+            rows={3}
             data-testid="textarea-notes"
           />
         </div>
 
-        <div className="flex justify-end gap-4 pt-4 border-t">
-          <Button type="button" variant="outline" onClick={onCancel} data-testid="button-cancel">
+        <div className="flex flex-wrap justify-end gap-4">
+          <Button type="button" variant="outline" onClick={onCancel} data-testid="button-cancel-movement">
             <X className="h-4 w-4 mr-2" />
             Cancelar
           </Button>
-          <Button type="button" onClick={handleSubmit} data-testid="button-submit">
-            <Save className="h-4 w-4 mr-2" />
+          <Button onClick={handleSubmit} disabled={isPending} data-testid="button-save-movement">
+            {isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
             Guardar Movimiento
           </Button>
         </div>

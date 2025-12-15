@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import DataTable, { Column } from "@/components/DataTable";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,101 +14,139 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Save, X } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { Warehouse } from "@shared/schema";
+import { Save, X, Loader2 } from "lucide-react";
 
-interface Warehouse {
+interface WarehouseDisplay {
   id: string;
   code: string;
   name: string;
-  location: string;
-  manager: string;
-  productsCount: number;
-  status: "active" | "inactive";
+  location: string | null;
+  manager: string | null;
+  isActive: boolean;
 }
 
-// todo: remove mock functionality
-const initialWarehouses: Warehouse[] = [
-  { id: "1", code: "ALM-001", name: "Almacén Central", location: "Av. Industrial 123, Col. Centro", manager: "Roberto Sánchez", productsCount: 450, status: "active" },
-  { id: "2", code: "ALM-002", name: "Sucursal Norte", location: "Blvd. Norte 456, Col. Residencial", manager: "Laura Mendoza", productsCount: 320, status: "active" },
-  { id: "3", code: "ALM-003", name: "Sucursal Sur", location: "Calle Sur 789, Col. Industrial", manager: "Miguel Torres", productsCount: 280, status: "active" },
-  { id: "4", code: "ALM-004", name: "Bodega Temporal", location: "Av. Periférico 1010", manager: "Sin asignar", productsCount: 0, status: "inactive" },
-];
-
-const columns: Column<Warehouse>[] = [
+const columns: Column<WarehouseDisplay>[] = [
   { key: "code", header: "Código", className: "font-mono" },
   { key: "name", header: "Nombre" },
-  { key: "location", header: "Ubicación" },
-  { key: "manager", header: "Responsable" },
-  { key: "productsCount", header: "Productos", className: "text-right font-mono" },
+  { key: "location", header: "Ubicación", render: (item) => item.location || "-" },
+  { key: "manager", header: "Responsable", render: (item) => item.manager || "-" },
   {
-    key: "status",
+    key: "isActive",
     header: "Estado",
     render: (item) => (
-      <Badge variant={item.status === "active" ? "default" : "secondary"}>
-        {item.status === "active" ? "Activo" : "Inactivo"}
+      <Badge variant={item.isActive ? "default" : "secondary"}>
+        {item.isActive ? "Activo" : "Inactivo"}
       </Badge>
     ),
   },
 ];
 
 export default function WarehousesPage() {
-  const [warehouses, setWarehouses] = useState<Warehouse[]>(initialWarehouses);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | undefined>();
   const [formData, setFormData] = useState({ code: "", name: "", location: "", manager: "" });
   const { toast } = useToast();
 
+  const { data: warehouses = [], isLoading } = useQuery<Warehouse[]>({
+    queryKey: ["/api/warehouses"],
+  });
+
+  useEffect(() => {
+    if (dialogOpen && editingWarehouse) {
+      setFormData({
+        code: editingWarehouse.code,
+        name: editingWarehouse.name,
+        location: editingWarehouse.location || "",
+        manager: editingWarehouse.manager || "",
+      });
+    } else if (dialogOpen) {
+      setFormData({ code: "", name: "", location: "", manager: "" });
+    }
+  }, [dialogOpen, editingWarehouse]);
+
+  const createMutation = useMutation({
+    mutationFn: async (data: Partial<Warehouse>) => {
+      const res = await apiRequest("POST", "/api/warehouses", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/warehouses"] });
+      toast({ title: "Almacén creado", description: "El almacén ha sido creado exitosamente." });
+      setDialogOpen(false);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo crear el almacén.", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Warehouse> }) => {
+      const res = await apiRequest("PATCH", `/api/warehouses/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/warehouses"] });
+      toast({ title: "Almacén actualizado", description: "El almacén ha sido actualizado exitosamente." });
+      setDialogOpen(false);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo actualizar el almacén.", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/warehouses/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/warehouses"] });
+      toast({ title: "Almacén eliminado", description: "El almacén ha sido eliminado." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo eliminar el almacén.", variant: "destructive" });
+    },
+  });
+
   const handleAdd = () => {
     setEditingWarehouse(undefined);
-    setFormData({ code: "", name: "", location: "", manager: "" });
     setDialogOpen(true);
   };
 
-  const handleEdit = (warehouse: Warehouse) => {
-    setEditingWarehouse(warehouse);
-    setFormData({
-      code: warehouse.code,
-      name: warehouse.name,
-      location: warehouse.location,
-      manager: warehouse.manager,
-    });
+  const handleEdit = (warehouse: WarehouseDisplay) => {
+    setEditingWarehouse(warehouse as unknown as Warehouse);
     setDialogOpen(true);
   };
 
-  const handleDelete = (warehouse: Warehouse) => {
-    setWarehouses(warehouses.filter((w) => w.id !== warehouse.id));
-    toast({
-      title: "Almacén eliminado",
-      description: `${warehouse.name} ha sido eliminado.`,
-    });
+  const handleDelete = (warehouse: WarehouseDisplay) => {
+    deleteMutation.mutate(warehouse.id);
   };
 
   const handleSave = () => {
-    if (editingWarehouse) {
-      setWarehouses(
-        warehouses.map((w) =>
-          w.id === editingWarehouse.id ? { ...w, ...formData } : w
-        )
-      );
-      toast({
-        title: "Almacén actualizado",
-        description: `${formData.name} ha sido actualizado.`,
-      });
+    const data = {
+      code: formData.code,
+      name: formData.name,
+      location: formData.location || null,
+      manager: formData.manager || null,
+    };
+    
+    if (editingWarehouse?.id) {
+      updateMutation.mutate({ id: editingWarehouse.id, data });
     } else {
-      const newWarehouse: Warehouse = {
-        ...formData,
-        id: String(Date.now()),
-        productsCount: 0,
-        status: "active",
-      };
-      setWarehouses([...warehouses, newWarehouse]);
-      toast({
-        title: "Almacén creado",
-        description: `${formData.name} ha sido creado.`,
-      });
+      createMutation.mutate(data);
     }
-    setDialogOpen(false);
   };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -117,7 +156,7 @@ export default function WarehousesPage() {
       </div>
 
       <DataTable
-        data={warehouses}
+        data={warehouses as WarehouseDisplay[]}
         columns={columns}
         searchPlaceholder="Buscar almacenes..."
         addLabel="Nuevo Almacén"
@@ -182,8 +221,12 @@ export default function WarehousesPage() {
               <X className="h-4 w-4 mr-2" />
               Cancelar
             </Button>
-            <Button onClick={handleSave} data-testid="button-save-warehouse">
-              <Save className="h-4 w-4 mr-2" />
+            <Button onClick={handleSave} disabled={isPending} data-testid="button-save-warehouse">
+              {isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
               {editingWarehouse ? "Actualizar" : "Crear"}
             </Button>
           </DialogFooter>

@@ -9,6 +9,8 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  await storage.initializeSystemUser();
+  
   app.get("/api/products", async (req, res) => {
     try {
       const products = await storage.getProducts();
@@ -188,11 +190,14 @@ export async function registerRoutes(
       const parsedMovement = insertMovementSchema.parse(movementData);
       const parsedDetails = z.array(insertMovementDetailSchema.omit({ movementId: true })).parse(details);
       
-      const movement = await storage.createMovement(parsedMovement, parsedDetails as any);
+      const movement = await storage.createMovement(parsedMovement, parsedDetails as any, storage.getSystemUserId());
       res.status(201).json(movement);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
+      }
+      if (error instanceof Error) {
+        return res.status(400).json({ error: error.message });
       }
       console.error("Error creating movement:", error);
       res.status(500).json({ error: "Error al crear movimiento" });

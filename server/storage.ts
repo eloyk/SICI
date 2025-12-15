@@ -49,7 +49,28 @@ export interface IStorage {
   getDashboardStats(): Promise<{ totalProducts: number; totalWarehouses: number; movementsToday: number; lowStockCount: number }>;
 }
 
+const SYSTEM_USER_ID = "system";
+
 export class DatabaseStorage implements IStorage {
+  async initializeSystemUser(): Promise<void> {
+    const existing = await this.getUser(SYSTEM_USER_ID);
+    if (!existing) {
+      await db.insert(users).values({
+        id: SYSTEM_USER_ID,
+        username: "system",
+        password: "not-used",
+        name: "Sistema",
+        email: "system@sici.local",
+        role: "admin",
+        isActive: true,
+      }).onConflictDoNothing();
+    }
+  }
+
+  getSystemUserId(): string {
+    return SYSTEM_USER_ID;
+  }
+
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
@@ -181,20 +202,30 @@ export class DatabaseStorage implements IStorage {
     return stockItem;
   }
 
-  async updateStock(productId: string, warehouseId: string, quantityChange: number): Promise<Stock> {
+  async updateStock(productId: string, warehouseId: string, quantityChange: number, allowNegative: boolean = false): Promise<Stock> {
     const existing = await this.getStockByProduct(productId, warehouseId);
     
     if (existing) {
+      const newQuantity = existing.quantity + quantityChange;
+      
+      if (!allowNegative && newQuantity < 0) {
+        throw new Error(`Stock insuficiente. Disponible: ${existing.quantity}, Requerido: ${Math.abs(quantityChange)}`);
+      }
+      
       const [updated] = await db
         .update(stock)
         .set({ 
-          quantity: existing.quantity + quantityChange,
+          quantity: newQuantity,
           lastUpdated: new Date(),
         })
         .where(eq(stock.id, existing.id))
         .returning();
       return updated;
     } else {
+      if (quantityChange < 0 && !allowNegative) {
+        throw new Error(`No existe stock del producto en este almacén`);
+      }
+      
       const [created] = await db
         .insert(stock)
         .values({ productId, warehouseId, quantity: quantityChange })
@@ -229,12 +260,12 @@ export class DatabaseStorage implements IStorage {
     return `${prefix}-${String(num).padStart(4, "0")}`;
   }
 
-  async createMovement(movement: InsertMovement, details: InsertMovementDetail[]): Promise<Movement> {
+  async createMovement(movement: InsertMovement, details: InsertMovementDetail[], userId?: string): Promise<Movement> {
     const folio = await this.getNextFolio(movement.type);
     
     const [created] = await db
       .insert(movements)
-      .values({ ...movement, folio })
+      .values({ ...movement, folio, userId: userId || SYSTEM_USER_ID })
       .returning();
 
     for (const detail of details) {
@@ -244,18 +275,19 @@ export class DatabaseStorage implements IStorage {
       });
 
       let quantityChange = detail.quantity;
+      let allowNegative = false;
       
       if (movement.type === "salida") {
         quantityChange = -detail.quantity;
       } else if (movement.type === "ajuste") {
-        quantityChange = detail.quantity;
+        allowNegative = true;
       }
 
       if (movement.type === "transferencia" && movement.warehouseDestinationId) {
-        await this.updateStock(detail.productId, movement.warehouseId, -detail.quantity);
-        await this.updateStock(detail.productId, movement.warehouseDestinationId, detail.quantity);
+        await this.updateStock(detail.productId, movement.warehouseId, -detail.quantity, false);
+        await this.updateStock(detail.productId, movement.warehouseDestinationId, detail.quantity, true);
       } else {
-        await this.updateStock(detail.productId, movement.warehouseId, quantityChange);
+        await this.updateStock(detail.productId, movement.warehouseId, quantityChange, allowNegative);
       }
     }
 

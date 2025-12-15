@@ -108,6 +108,7 @@ export const insertMovementSchema = createInsertSchema(movements).omit({
   id: true,
   createdAt: true,
   folio: true,
+  userId: true,
 });
 
 export const insertMovementDetailSchema = createInsertSchema(movementDetails).omit({

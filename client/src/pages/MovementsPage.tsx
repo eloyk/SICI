@@ -1,35 +1,30 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import MovementForm from "@/components/MovementForm";
 import DataTable, { Column } from "@/components/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Settings2, Plus } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { Movement } from "@shared/schema";
+import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Settings2, Plus, Loader2 } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 type MovementType = "entrada" | "salida" | "transferencia" | "ajuste";
 
-interface Movement {
+interface MovementDisplay {
   id: string;
   folio: string;
   type: MovementType;
-  date: string;
-  warehouse: string;
-  warehouseDestination?: string;
-  productsCount: number;
-  total: number;
-  user: string;
+  createdAt: Date;
+  warehouseId: string;
+  warehouseDestinationId: string | null;
+  totalValue: string;
+  userId: string;
   status: "completed" | "pending" | "cancelled";
 }
-
-// todo: remove mock functionality
-const initialMovements: Movement[] = [
-  { id: "1", folio: "ENT-001", type: "entrada", date: "2025-12-15 09:30", warehouse: "Almacén Central", productsCount: 5, total: 12500.00, user: "Juan Pérez", status: "completed" },
-  { id: "2", folio: "SAL-001", type: "salida", date: "2025-12-15 10:15", warehouse: "Sucursal Norte", productsCount: 3, total: 8750.00, user: "María García", status: "completed" },
-  { id: "3", folio: "TRF-001", type: "transferencia", date: "2025-12-15 11:00", warehouse: "Almacén Central", warehouseDestination: "Sucursal Sur", productsCount: 10, total: 0, user: "Carlos López", status: "completed" },
-  { id: "4", folio: "AJU-001", type: "ajuste", date: "2025-12-14 16:45", warehouse: "Almacén Central", productsCount: 2, total: -1500.00, user: "Ana Martínez", status: "completed" },
-  { id: "5", folio: "ENT-002", type: "entrada", date: "2025-12-14 14:20", warehouse: "Sucursal Norte", productsCount: 8, total: 25000.00, user: "Juan Pérez", status: "completed" },
-];
 
 const typeConfig: Record<MovementType, { icon: typeof ArrowDownLeft; label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   entrada: { icon: ArrowDownLeft, label: "Entrada", variant: "default" },
@@ -38,7 +33,7 @@ const typeConfig: Record<MovementType, { icon: typeof ArrowDownLeft; label: stri
   ajuste: { icon: Settings2, label: "Ajuste", variant: "outline" },
 };
 
-const columns: Column<Movement>[] = [
+const columns: Column<MovementDisplay>[] = [
   { key: "folio", header: "Folio", className: "font-mono" },
   {
     key: "type",
@@ -54,16 +49,20 @@ const columns: Column<Movement>[] = [
       );
     },
   },
-  { key: "date", header: "Fecha" },
-  { key: "warehouse", header: "Almacén" },
-  { key: "productsCount", header: "Productos", className: "text-center font-mono" },
+  { 
+    key: "createdAt", 
+    header: "Fecha",
+    render: (item) => format(new Date(item.createdAt), "dd/MM/yyyy HH:mm", { locale: es }),
+  },
   {
-    key: "total",
+    key: "totalValue",
     header: "Total",
     className: "text-right font-mono",
-    render: (item) => item.total !== 0 ? `$${Math.abs(item.total).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "-",
+    render: (item) => {
+      const value = parseFloat(item.totalValue);
+      return value !== 0 ? `$${Math.abs(value).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "-";
+    },
   },
-  { key: "user", header: "Usuario" },
   {
     key: "status",
     header: "Estado",
@@ -84,7 +83,6 @@ const columns: Column<Movement>[] = [
 export default function MovementsPage() {
   const [location] = useLocation();
   const [showForm, setShowForm] = useState(false);
-  const [movements, setMovements] = useState<Movement[]>(initialMovements);
   const { toast } = useToast();
 
   const pathParts = location.split("/");
@@ -99,29 +97,41 @@ export default function MovementsPage() {
   
   const currentType: MovementType = urlToType[typeFromUrl] || "entrada";
 
+  const { data: movements = [], isLoading } = useQuery<Movement[]>({
+    queryKey: ["/api/movements"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: unknown) => {
+      const res = await apiRequest("POST", "/api/movements", data);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/movements"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stock"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/alerts/low-stock"] });
+      setShowForm(false);
+      toast({
+        title: "Movimiento registrado",
+        description: `El movimiento ${data.folio} ha sido guardado.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Error", 
+        description: error.message || "No se pudo registrar el movimiento.", 
+        variant: "destructive" 
+      });
+    },
+  });
+
   const filteredMovements = movements.filter((m) => 
     urlToType[typeFromUrl] ? m.type === urlToType[typeFromUrl] : true
   );
 
   const handleSubmit = (data: unknown) => {
-    const newMovement: Movement = {
-      id: String(Date.now()),
-      folio: `${currentType.toUpperCase().slice(0, 3)}-${String(movements.length + 1).padStart(3, "0")}`,
-      type: currentType,
-      date: new Date().toISOString().slice(0, 16).replace("T", " "),
-      warehouse: "Almacén Central",
-      productsCount: 1,
-      total: 0,
-      user: "Admin Usuario",
-      status: "completed",
-    };
-    setMovements([newMovement, ...movements]);
-    setShowForm(false);
-    toast({
-      title: "Movimiento registrado",
-      description: `El movimiento ${newMovement.folio} ha sido guardado.`,
-    });
-    console.log("Movimiento guardado:", data);
+    createMutation.mutate(data);
   };
 
   const typeLabels: Record<string, string> = {
@@ -140,7 +150,16 @@ export default function MovementsPage() {
           type={currentType}
           onSubmit={handleSubmit}
           onCancel={() => setShowForm(false)}
+          isPending={createMutation.isPending}
         />
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -159,7 +178,7 @@ export default function MovementsPage() {
       </div>
 
       <DataTable
-        data={filteredMovements}
+        data={filteredMovements as MovementDisplay[]}
         columns={columns}
         searchPlaceholder="Buscar movimientos..."
         getRowId={(item) => item.id}

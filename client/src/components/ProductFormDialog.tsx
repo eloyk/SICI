@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -16,45 +17,64 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, X } from "lucide-react";
+import { Save, X, Loader2 } from "lucide-react";
+import type { Product, Category } from "@shared/schema";
 
 interface ProductFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  product?: {
-    id?: string;
-    code: string;
-    name: string;
-    category: string;
-    unit: string;
-    minStock: number;
-    standardCost: number;
-  };
-  onSave?: (data: unknown) => void;
+  product?: Product;
+  onSave?: (data: Partial<Product>) => void;
+  isPending?: boolean;
 }
 
-// todo: remove mock functionality
-const categories = ["Ferretería", "Eléctricos", "Plomería", "Pinturas", "Herramientas"];
-const units = ["Pieza", "Metro", "Kilogramo", "Litro", "Caja"];
+const units = ["Pieza", "Metro", "Kilogramo", "Litro", "Caja", "Par", "Rollo"];
 
 export default function ProductFormDialog({
   open,
   onOpenChange,
   product,
   onSave,
+  isPending,
 }: ProductFormDialogProps) {
   const [formData, setFormData] = useState({
-    code: product?.code || "",
-    name: product?.name || "",
-    category: product?.category || "",
-    unit: product?.unit || "",
-    minStock: product?.minStock || 0,
-    standardCost: product?.standardCost || 0,
+    code: "",
+    name: "",
+    description: "",
+    categoryId: "",
+    unit: "",
+    minStock: 0,
+    standardCost: "0",
   });
 
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ["/api/categories"],
+  });
+
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        code: product?.code || "",
+        name: product?.name || "",
+        description: product?.description || "",
+        categoryId: product?.categoryId || "",
+        unit: product?.unit || "",
+        minStock: product?.minStock || 0,
+        standardCost: product?.standardCost?.toString() || "0",
+      });
+    }
+  }, [open, product]);
+
   const handleSave = () => {
-    onSave?.({ ...formData, id: product?.id });
-    onOpenChange(false);
+    onSave?.({
+      code: formData.code,
+      name: formData.name,
+      description: formData.description || null,
+      categoryId: formData.categoryId || null,
+      unit: formData.unit,
+      minStock: formData.minStock,
+      standardCost: formData.standardCost,
+    });
   };
 
   const isEditing = !!product?.id;
@@ -91,19 +111,30 @@ export default function ProductFormDialog({
             />
           </div>
 
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="description">Descripción</Label>
+            <Input
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Descripción del producto"
+              data-testid="input-product-description"
+            />
+          </div>
+
           <div className="space-y-2">
-            <Label htmlFor="category">Categoría *</Label>
+            <Label htmlFor="category">Categoría</Label>
             <Select
-              value={formData.category}
-              onValueChange={(value) => setFormData({ ...formData, category: value })}
+              value={formData.categoryId}
+              onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
             >
               <SelectTrigger id="category" data-testid="select-category">
                 <SelectValue placeholder="Seleccionar categoría" />
               </SelectTrigger>
               <SelectContent>
                 {categories.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -149,7 +180,7 @@ export default function ProductFormDialog({
               min={0}
               step={0.01}
               value={formData.standardCost}
-              onChange={(e) => setFormData({ ...formData, standardCost: Number(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, standardCost: e.target.value })}
               data-testid="input-standard-cost"
             />
           </div>
@@ -160,8 +191,12 @@ export default function ProductFormDialog({
             <X className="h-4 w-4 mr-2" />
             Cancelar
           </Button>
-          <Button onClick={handleSave} data-testid="button-save-product">
-            <Save className="h-4 w-4 mr-2" />
+          <Button onClick={handleSave} disabled={isPending} data-testid="button-save-product">
+            {isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
             {isEditing ? "Actualizar" : "Crear"} Producto
           </Button>
         </DialogFooter>

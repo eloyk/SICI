@@ -1,26 +1,71 @@
+import { useQuery } from "@tanstack/react-query";
 import StatCard from "@/components/StatCard";
 import AlertPanel from "@/components/AlertPanel";
 import RecentActivity from "@/components/RecentActivity";
-import { Package, Warehouse, ArrowDownUp, AlertTriangle } from "lucide-react";
+import { Package, Warehouse, ArrowDownUp, AlertTriangle, Loader2 } from "lucide-react";
+import type { Product, Warehouse as WarehouseType, Stock, Movement } from "@shared/schema";
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
 
-// todo: remove mock functionality
-const mockAlerts = [
-  { id: "1", productCode: "PRD-001", productName: "Tornillo Hexagonal 1/4", currentStock: 50, minStock: 100, warehouse: "Almacén Central" },
-  { id: "2", productCode: "PRD-015", productName: "Tuerca M8", currentStock: 25, minStock: 50, warehouse: "Sucursal Norte" },
-  { id: "3", productCode: "PRD-023", productName: "Arandela Plana 3/8", currentStock: 30, minStock: 75, warehouse: "Almacén Central" },
-  { id: "4", productCode: "PRD-042", productName: "Perno Allen M6x20", currentStock: 15, minStock: 40, warehouse: "Sucursal Sur" },
-  { id: "5", productCode: "PRD-051", productName: "Clavo 2 pulgadas", currentStock: 100, minStock: 200, warehouse: "Almacén Central" },
-];
+interface StockWithDetails extends Stock {
+  product: Product;
+  warehouse: WarehouseType;
+}
 
-const mockActivities = [
-  { id: "1", type: "entrada" as const, description: "Compra de 500 unidades - Tornillo Hexagonal", user: "Juan Pérez", timestamp: "Hace 15 min" },
-  { id: "2", type: "salida" as const, description: "Venta 200 unidades - Tuerca M8", user: "María García", timestamp: "Hace 32 min" },
-  { id: "3", type: "transferencia" as const, description: "Transferencia Almacén Central → Sucursal Norte", user: "Carlos López", timestamp: "Hace 1 hora" },
-  { id: "4", type: "ajuste" as const, description: "Ajuste negativo -25 unidades - Arandela Plana", user: "Ana Martínez", timestamp: "Hace 2 horas" },
-  { id: "5", type: "entrada" as const, description: "Devolución cliente 50 unidades - Perno Allen", user: "Juan Pérez", timestamp: "Hace 3 horas" },
-];
+interface DashboardStats {
+  totalProducts: number;
+  totalWarehouses: number;
+  movementsToday: number;
+  lowStockCount: number;
+}
 
 export default function Dashboard() {
+  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
+    queryKey: ["/api/dashboard/stats"],
+  });
+
+  const { data: lowStockAlerts = [], isLoading: alertsLoading } = useQuery<StockWithDetails[]>({
+    queryKey: ["/api/alerts/low-stock"],
+  });
+
+  const { data: movements = [], isLoading: movementsLoading } = useQuery<Movement[]>({
+    queryKey: ["/api/movements"],
+  });
+
+  const isLoading = statsLoading || alertsLoading || movementsLoading;
+
+  const alerts = lowStockAlerts.map((item) => ({
+    id: item.id,
+    productCode: item.product.code,
+    productName: item.product.name,
+    currentStock: item.quantity,
+    minStock: item.product.minStock,
+    warehouse: item.warehouse.name,
+  }));
+
+  const typeLabels: Record<string, string> = {
+    entrada: "Entrada",
+    salida: "Salida",
+    transferencia: "Transferencia",
+    ajuste: "Ajuste",
+  };
+
+  const activities = movements.slice(0, 5).map((m) => ({
+    id: m.id,
+    type: m.type as "entrada" | "salida" | "transferencia" | "ajuste",
+    description: `${typeLabels[m.type]} - ${m.folio}`,
+    user: "Sistema",
+    timestamp: formatDistanceToNow(new Date(m.createdAt), { addSuffix: true, locale: es }),
+  }));
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -31,39 +76,36 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Total Productos"
-          value="1,234"
+          value={stats?.totalProducts?.toString() || "0"}
           icon={Package}
-          trend={{ value: 12, isPositive: true }}
           accentColor="blue"
         />
         <StatCard
           title="Almacenes"
-          value="8"
+          value={stats?.totalWarehouses?.toString() || "0"}
           icon={Warehouse}
           accentColor="green"
         />
         <StatCard
           title="Movimientos Hoy"
-          value="47"
+          value={stats?.movementsToday?.toString() || "0"}
           icon={ArrowDownUp}
-          trend={{ value: 5, isPositive: true }}
           accentColor="orange"
         />
         <StatCard
           title="Alertas Stock"
-          value="12"
+          value={stats?.lowStockCount?.toString() || "0"}
           icon={AlertTriangle}
-          trend={{ value: 3, isPositive: false }}
           accentColor="red"
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AlertPanel
-          alerts={mockAlerts}
+          alerts={alerts}
           onViewDetails={(id) => console.log("Ver detalles:", id)}
         />
-        <RecentActivity activities={mockActivities} />
+        <RecentActivity activities={activities} />
       </div>
     </div>
   );
