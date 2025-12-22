@@ -21,16 +21,34 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+async function fetchUser(): Promise<User | null> {
+  try {
+    const response = await fetch("/auth/me", {
+      credentials: "include",
+    });
+    if (response.status === 401) {
+      return null;
+    }
+    if (!response.ok) {
+      throw new Error("Failed to fetch user");
+    }
+    return response.json();
+  } catch (error) {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
-  const { data: user, isLoading, error } = useQuery<User>({
+  const { data: user, isLoading, error } = useQuery<User | null>({
     queryKey: ["/auth/me"],
+    queryFn: fetchUser,
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
 
-  const isAuthenticated = !!user && !error;
+  const isAuthenticated = !!user;
 
   const login = () => {
     window.location.href = "/auth/login";

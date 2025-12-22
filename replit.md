@@ -27,18 +27,37 @@ The frontend follows a page-based architecture with reusable components. Key pag
 - **Language**: TypeScript with ESM modules
 - **API Pattern**: RESTful API endpoints under `/api/*`
 - **Database ORM**: Drizzle ORM with PostgreSQL
+- **Authentication**: Keycloak via OpenID Connect (passport-openidconnect)
+- **Session Store**: PostgreSQL with connect-pg-simple
 - **Build Process**: esbuild for server bundling, Vite for client
 
 The server uses a storage abstraction layer (`IStorage` interface) for database operations, making it easier to test and swap implementations. Routes are registered in a single file with validation using Zod schemas.
 
+### Authentication & Authorization
+- **Identity Provider**: Keycloak (https://keycloak.pcw.com.do/)
+- **Client ID**: sici-app
+- **Realm**: master
+- **Protocol**: OpenID Connect
+- **Session Management**: PostgreSQL-backed sessions (user_sessions table)
+- **Role Extraction**: Roles extracted from Keycloak access token (realm_access.roles and resource_access)
+- **Protected Routes**: All write operations require authentication; user management requires "admin" role
+
+Authentication flow:
+1. User accesses app → RequireAuth checks /auth/me
+2. If unauthenticated → Redirect to /auth/login → Keycloak login
+3. After login → Callback to /auth/callback → Session created
+4. User info stored in session with roles from access token
+5. Logout via /auth/logout → Keycloak logout → Session destroyed
+
 ### Data Model
 Core entities include:
-- **Users**: Role-based access (admin, supervisor, operador, consulta)
+- **Users**: Role-based access managed by Keycloak (roles: admin, supervisor, operador, consulta)
 - **Products**: Inventory items with categories, units, minimum stock levels
 - **Warehouses**: Storage locations with managers and status
 - **Stock**: Current inventory levels per product per warehouse
 - **Movements**: Inventory transactions (entrada, salida, transferencia, ajuste)
 - **MovementDetails**: Line items for each movement
+- **UserSessions**: PostgreSQL session store for Keycloak authenticated sessions
 
 ### Design Patterns
 - **Monorepo Structure**: Shared schema between client and server in `/shared`

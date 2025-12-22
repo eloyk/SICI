@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertProductSchema, insertWarehouseSchema, insertMovementSchema, insertMovementDetailSchema, insertCategorySchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
+import { requireAuth, requireRole } from "./auth";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -32,7 +33,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/products", async (req, res) => {
+  app.post("/api/products", requireAuth, async (req, res) => {
     try {
       const data = insertProductSchema.parse(req.body);
       const product = await storage.createProduct(data);
@@ -45,7 +46,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/products/:id", async (req, res) => {
+  app.patch("/api/products/:id", requireAuth, async (req, res) => {
     try {
       const data = insertProductSchema.partial().parse(req.body);
       const product = await storage.updateProduct(req.params.id, data);
@@ -61,7 +62,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/products/:id", async (req, res) => {
+  app.delete("/api/products/:id", requireAuth, async (req, res) => {
     try {
       await storage.deleteProduct(req.params.id);
       res.status(204).send();
@@ -79,7 +80,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/categories", async (req, res) => {
+  app.post("/api/categories", requireAuth, async (req, res) => {
     try {
       const data = insertCategorySchema.parse(req.body);
       const category = await storage.createCategory(data);
@@ -113,7 +114,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/warehouses", async (req, res) => {
+  app.post("/api/warehouses", requireAuth, async (req, res) => {
     try {
       const data = insertWarehouseSchema.parse(req.body);
       const warehouse = await storage.createWarehouse(data);
@@ -126,7 +127,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/warehouses/:id", async (req, res) => {
+  app.patch("/api/warehouses/:id", requireAuth, async (req, res) => {
     try {
       const data = insertWarehouseSchema.partial().parse(req.body);
       const warehouse = await storage.updateWarehouse(req.params.id, data);
@@ -142,7 +143,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/warehouses/:id", async (req, res) => {
+  app.delete("/api/warehouses/:id", requireAuth, async (req, res) => {
     try {
       await storage.deleteWarehouse(req.params.id);
       res.status(204).send();
@@ -193,13 +194,14 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/movements", async (req, res) => {
+  app.post("/api/movements", requireAuth, async (req, res) => {
     try {
       const { details, ...movementData } = req.body;
       const parsedMovement = insertMovementSchema.parse(movementData);
       const parsedDetails = z.array(insertMovementDetailSchema.omit({ movementId: true })).parse(details);
       
-      const movement = await storage.createMovement(parsedMovement, parsedDetails as any, storage.getSystemUserId());
+      const userId = req.user?.id || storage.getSystemUserId();
+      const movement = await storage.createMovement(parsedMovement, parsedDetails as any, userId);
       res.status(201).json(movement);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -231,7 +233,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/users", async (req, res) => {
+  app.get("/api/users", requireRole("admin"), async (req, res) => {
     try {
       const users = await storage.getUsers();
       res.json(users);
@@ -240,7 +242,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/users", async (req, res) => {
+  app.post("/api/users", requireRole("admin"), async (req, res) => {
     try {
       const data = insertUserSchema.parse(req.body);
       const user = await storage.createUser(data);
@@ -253,7 +255,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/users/:id", async (req, res) => {
+  app.patch("/api/users/:id", requireRole("admin"), async (req, res) => {
     try {
       const data = insertUserSchema.partial().parse(req.body);
       const user = await storage.updateUser(req.params.id, data);
@@ -269,7 +271,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/users/:id", async (req, res) => {
+  app.delete("/api/users/:id", requireRole("admin"), async (req, res) => {
     try {
       await storage.deleteUser(req.params.id);
       res.status(204).send();

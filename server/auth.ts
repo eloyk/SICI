@@ -4,6 +4,7 @@ import session from "express-session";
 import type { Express, Request, Response, NextFunction } from "express";
 import connectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
+import jwt from "jsonwebtoken";
 
 const PgSession = connectPgSimple(session);
 
@@ -55,6 +56,47 @@ export function setupAuth(app: Express): void {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  const verifyCallback = (
+    iss: string,
+    uiProfile: any,
+    idProfile: any,
+    context: any,
+    idToken: string,
+    accessToken: string,
+    refreshToken: string,
+    params: any,
+    done: (err: any, user?: any) => void
+  ) => {
+    let roles: string[] = [];
+    
+    try {
+      if (accessToken) {
+        const decodedToken = jwt.decode(accessToken) as any;
+        
+        if (decodedToken?.realm_access?.roles) {
+          roles.push(...decodedToken.realm_access.roles);
+        }
+        if (decodedToken?.resource_access?.[KEYCLOAK_CLIENT_ID]?.roles) {
+          roles.push(...decodedToken.resource_access[KEYCLOAK_CLIENT_ID].roles);
+        }
+      }
+    } catch (e) {
+      console.error("Error parsing token for roles:", e);
+    }
+
+    const profile = uiProfile || idProfile || {};
+    
+    const user: KeycloakUser = {
+      id: profile.id || profile.sub || "",
+      email: profile.emails?.[0]?.value || profile.email || "",
+      name: profile.displayName || profile.name || profile.preferred_username || "",
+      username: profile.username || profile.preferred_username || profile.sub || "",
+      roles,
+    };
+
+    return done(null, user);
+  };
+
   passport.use(
     "keycloak",
     new OpenIDConnectStrategy(
@@ -68,35 +110,7 @@ export function setupAuth(app: Express): void {
         callbackURL: "/auth/callback",
         scope: ["openid", "profile", "email"],
       },
-      (issuer: string, profile: any, context: any, idToken: any, accessToken: any, refreshToken: any, params: any, done: any) => {
-        let roles: string[] = [];
-        
-        try {
-          if (accessToken) {
-            const jwt = require("jsonwebtoken");
-            const decodedToken = jwt.decode(accessToken);
-            
-            if (decodedToken?.realm_access?.roles) {
-              roles.push(...decodedToken.realm_access.roles);
-            }
-            if (decodedToken?.resource_access?.[KEYCLOAK_CLIENT_ID]?.roles) {
-              roles.push(...decodedToken.resource_access[KEYCLOAK_CLIENT_ID].roles);
-            }
-          }
-        } catch (e) {
-          console.error("Error parsing token for roles:", e);
-        }
-
-        const user: KeycloakUser = {
-          id: profile.id,
-          email: profile.emails?.[0]?.value || "",
-          name: profile.displayName || profile.username || "",
-          username: profile.username || profile.id,
-          roles,
-        };
-
-        return done(null, user);
-      }
+      verifyCallback as any
     )
   );
 
