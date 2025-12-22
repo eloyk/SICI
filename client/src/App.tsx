@@ -16,6 +16,7 @@ import MovementsPage from "@/pages/MovementsPage";
 import StockPage from "@/pages/StockPage";
 import ReportsPage from "@/pages/ReportsPage";
 import UsersPage from "@/pages/UsersPage";
+import LoginPage from "@/pages/LoginPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -37,35 +38,43 @@ function Router() {
   );
 }
 
-function App() {
+function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "4rem",
   };
 
   return (
+    <SidebarProvider style={style as React.CSSProperties}>
+      <div className="flex h-screen w-full">
+        <AppSidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <header className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-background">
+            <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <UserMenu />
+            </div>
+          </header>
+          <main className="flex-1 overflow-auto bg-muted/30">
+            {children}
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
+  );
+}
+
+function App() {
+  return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AuthProvider>
-            <RequireAuth>
-              <SidebarProvider style={style as React.CSSProperties}>
-                <div className="flex h-screen w-full">
-                  <AppSidebar />
-                  <div className="flex flex-col flex-1 overflow-hidden">
-                    <header className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-background">
-                      <SidebarTrigger data-testid="button-sidebar-toggle" />
-                      <div className="flex items-center gap-2">
-                        <ThemeToggle />
-                        <UserMenu />
-                      </div>
-                    </header>
-                    <main className="flex-1 overflow-auto bg-muted/30">
-                      <Router />
-                    </main>
-                  </div>
-                </div>
-              </SidebarProvider>
+            <RequireAuth fallback={<LoginPage />}>
+              <AuthenticatedLayout>
+                <Router />
+              </AuthenticatedLayout>
             </RequireAuth>
           </AuthProvider>
           <Toaster />

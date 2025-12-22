@@ -140,7 +140,9 @@ export function setupAuth(app: Express): void {
   );
 
   app.get("/auth/logout", (req, res) => {
-    const returnUrl = `${req.protocol}://${req.get("host")}/`;
+    const returnUrl = REPLIT_DEV_DOMAIN 
+      ? `https://${REPLIT_DEV_DOMAIN}/`
+      : `${req.protocol}://${req.get("host")}/`;
     const logoutUrl = `${issuerUrl}/protocol/openid-connect/logout?client_id=${KEYCLOAK_CLIENT_ID}&post_logout_redirect_uri=${encodeURIComponent(returnUrl)}`;
     
     req.logout((err) => {

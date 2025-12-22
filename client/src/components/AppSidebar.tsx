@@ -9,7 +9,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
-  SidebarFooter,
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard,
@@ -23,17 +22,7 @@ import {
   FileBarChart,
   Users,
   Shield,
-  LogOut,
 } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 const menuGroups = [
   {
@@ -79,23 +68,8 @@ const menuGroups = [
   },
 ];
 
-interface AppSidebarProps {
-  currentUser?: {
-    name: string;
-    email: string;
-    role: string;
-  };
-}
-
-export default function AppSidebar({ currentUser }: AppSidebarProps) {
+export default function AppSidebar() {
   const [location] = useLocation();
-
-  // todo: remove mock functionality
-  const user = currentUser || {
-    name: "Admin Usuario",
-    email: "admin@sici.com",
-    role: "Administrador",
-  };
 
   return (
     <Sidebar>
@@ -135,39 +109,6 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter className="border-t p-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="w-full justify-start gap-3 px-2" data-testid="button-user-menu">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="text-xs">
-                  {user.name.split(" ").map((n) => n[0]).join("")}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col items-start text-left">
-                <span className="text-sm font-medium truncate max-w-[140px]">{user.name}</span>
-                <span className="text-xs text-muted-foreground">{user.role}</span>
-              </div>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <div className="px-2 py-1.5">
-              <p className="text-sm font-medium">{user.name}</p>
-              <p className="text-xs text-muted-foreground">{user.email}</p>
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <Users className="h-4 w-4 mr-2" />
-              Mi Perfil
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
-              <LogOut className="h-4 w-4 mr-2" />
-              Cerrar Sesión
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarFooter>
     </Sidebar>
   );
 }

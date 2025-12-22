@@ -92,14 +92,8 @@ export function useAuth() {
   return context;
 }
 
-export function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
-  const { isAuthenticated, isLoading, hasAnyRole, login } = useAuth();
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      login();
-    }
-  }, [isLoading, isAuthenticated, login]);
+export function RequireAuth({ children, roles, fallback }: { children: React.ReactNode; roles?: string[]; fallback?: React.ReactNode }) {
+  const { isAuthenticated, isLoading, hasAnyRole } = useAuth();
 
   if (isLoading) {
     return (
@@ -110,7 +104,7 @@ export function RequireAuth({ children, roles }: { children: React.ReactNode; ro
   }
 
   if (!isAuthenticated) {
-    return null;
+    return fallback ? <>{fallback}</> : null;
   }
 
   if (roles && roles.length > 0 && !hasAnyRole(...roles)) {
@@ -118,7 +112,7 @@ export function RequireAuth({ children, roles }: { children: React.ReactNode; ro
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-destructive">Acceso Denegado</h1>
-          <p className="text-muted-foreground mt-2">No tienes permisos para acceder a esta sección.</p>
+          <p className="text-muted-foreground mt-2">No tienes permisos para acceder a esta seccion.</p>
         </div>
       </div>
     );
