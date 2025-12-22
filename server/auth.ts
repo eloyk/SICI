@@ -23,11 +23,15 @@ declare global {
 }
 
 const KEYCLOAK_URL = process.env.KEYCLOAK_URL || "https://keycloak.pcw.com.do";
-const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || "master";
+const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || "sici";
 const KEYCLOAK_CLIENT_ID = process.env.KEYCLOAK_CLIENT_ID || "sici-app";
 const KEYCLOAK_CLIENT_SECRET = process.env.KEYCLOAK_CLIENT_SECRET;
+const REPLIT_DEV_DOMAIN = process.env.REPLIT_DEV_DOMAIN;
 
 const issuerUrl = `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}`;
+const callbackUrl = REPLIT_DEV_DOMAIN 
+  ? `https://${REPLIT_DEV_DOMAIN}/api/callback`
+  : "/api/callback";
 
 export function setupAuth(app: Express): void {
   const pool = new Pool({
@@ -107,7 +111,7 @@ export function setupAuth(app: Express): void {
         userInfoURL: `${issuerUrl}/protocol/openid-connect/userinfo`,
         clientID: KEYCLOAK_CLIENT_ID,
         clientSecret: KEYCLOAK_CLIENT_SECRET!,
-        callbackURL: "/auth/callback",
+        callbackURL: callbackUrl,
         scope: ["openid", "profile", "email"],
       },
       verifyCallback as any
@@ -125,7 +129,7 @@ export function setupAuth(app: Express): void {
   app.get("/auth/login", passport.authenticate("keycloak"));
 
   app.get(
-    "/auth/callback",
+    "/api/callback",
     passport.authenticate("keycloak", {
       failureRedirect: "/auth/login",
       failureMessage: true,

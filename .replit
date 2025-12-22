@@ -42,5 +42,5 @@ waitForPort = 5000
 
 [userenv.shared]
 KEYCLOAK_URL = "https://keycloak.pcw.com.do"
-KEYCLOAK_REALM = "master"
+KEYCLOAK_REALM = "sici"
 KEYCLOAK_CLIENT_ID = "sici-app"
