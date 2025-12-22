@@ -44,10 +44,23 @@ The server uses a storage abstraction layer (`IStorage` interface) for database 
 
 Authentication flow:
 1. User accesses app → RequireAuth checks /auth/me
-2. If unauthenticated → Redirect to /auth/login → Keycloak login
-3. After login → Callback to /auth/callback → Session created
-4. User info stored in session with roles from access token
-5. Logout via /auth/logout → Keycloak logout → Session destroyed
+2. If unauthenticated → Shows LoginPage with login button
+3. User clicks login → Redirect to /auth/login → Keycloak login
+4. After login → Callback to /api/callback → Session created
+5. User info stored in session with roles from access token
+6. Logout via /auth/logout → Keycloak logout → Session destroyed
+
+### Keycloak Admin API Integration
+The application uses Keycloak Admin REST API to manage users and roles:
+- **Endpoint**: `GET /api/users` - Fetches users from Keycloak with their roles
+- **Endpoint**: `GET /api/roles` - Fetches realm roles from Keycloak
+- **Endpoint**: `POST /api/users/:id/roles` - Assigns a role to a user
+- **Endpoint**: `DELETE /api/users/:id/roles` - Removes a role from a user
+
+Keycloak client requirements for Admin API:
+- Client authentication: ON
+- Service account roles: ON
+- Service Account must have realm-management roles: view-users, manage-users, view-realm
 
 ### Data Model
 Core entities include:

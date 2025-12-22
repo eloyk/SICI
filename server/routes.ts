@@ -1,9 +1,10 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertProductSchema, insertWarehouseSchema, insertMovementSchema, insertMovementDetailSchema, insertCategorySchema, insertUserSchema } from "@shared/schema";
+import { insertProductSchema, insertWarehouseSchema, insertMovementSchema, insertMovementDetailSchema, insertCategorySchema } from "@shared/schema";
 import { z } from "zod";
 import { requireAuth, requireRole } from "./auth";
+import { getKeycloakUsers, getKeycloakRoles, getUsersWithRoles, getUserRoles, assignRoleToUser, removeRoleFromUser } from "./keycloak-admin";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -235,48 +236,73 @@ export async function registerRoutes(
 
   app.get("/api/users", requireRole("admin"), async (req, res) => {
     try {
-      const users = await storage.getUsers();
-      res.json(users);
-    } catch (error) {
-      res.status(500).json({ error: "Error al obtener usuarios" });
+      const users = await getUsersWithRoles();
+      const formattedUsers = users.map((u) => ({
+        id: u.id,
+        username: u.username,
+        email: u.email || "",
+        name: `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.username,
+        role: u.roles.find((r) => ["admin", "supervisor", "operador", "consulta"].includes(r)) || "consulta",
+        roles: u.roles,
+        status: u.enabled ? "activo" : "inactivo",
+      }));
+      res.json(formattedUsers);
+    } catch (error: any) {
+      console.error("Error al obtener usuarios de Keycloak:", error);
+      res.status(500).json({ error: error.message || "Error al obtener usuarios" });
     }
   });
 
-  app.post("/api/users", requireRole("admin"), async (req, res) => {
+  app.get("/api/users/:id/roles", requireRole("admin"), async (req, res) => {
     try {
-      const data = insertUserSchema.parse(req.body);
-      const user = await storage.createUser(data);
-      res.status(201).json(user);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-      res.status(500).json({ error: "Error al crear usuario" });
+      const roles = await getUserRoles(req.params.id);
+      res.json(roles);
+    } catch (error: any) {
+      console.error("Error al obtener roles del usuario:", error);
+      res.status(500).json({ error: error.message || "Error al obtener roles del usuario" });
     }
   });
 
-  app.patch("/api/users/:id", requireRole("admin"), async (req, res) => {
+  app.post("/api/users/:id/roles", requireRole("admin"), async (req, res) => {
     try {
-      const data = insertUserSchema.partial().parse(req.body);
-      const user = await storage.updateUser(req.params.id, data);
-      if (!user) {
-        return res.status(404).json({ error: "Usuario no encontrado" });
+      const { roleId, roleName } = req.body;
+      if (!roleId || !roleName) {
+        return res.status(400).json({ error: "roleId y roleName son requeridos" });
       }
-      res.json(user);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-      res.status(500).json({ error: "Error al actualizar usuario" });
+      await assignRoleToUser(req.params.id, roleId, roleName);
+      res.status(200).json({ message: "Rol asignado correctamente" });
+    } catch (error: any) {
+      console.error("Error al asignar rol:", error);
+      res.status(500).json({ error: error.message || "Error al asignar rol" });
     }
   });
 
-  app.delete("/api/users/:id", requireRole("admin"), async (req, res) => {
+  app.delete("/api/users/:id/roles", requireRole("admin"), async (req, res) => {
     try {
-      await storage.deleteUser(req.params.id);
-      res.status(204).send();
-    } catch (error) {
-      res.status(500).json({ error: "Error al eliminar usuario" });
+      const { roleId, roleName } = req.body;
+      if (!roleId || !roleName) {
+        return res.status(400).json({ error: "roleId y roleName son requeridos" });
+      }
+      await removeRoleFromUser(req.params.id, roleId, roleName);
+      res.status(200).json({ message: "Rol removido correctamente" });
+    } catch (error: any) {
+      console.error("Error al remover rol:", error);
+      res.status(500).json({ error: error.message || "Error al remover rol" });
+    }
+  });
+
+  app.get("/api/roles", requireRole("admin"), async (req, res) => {
+    try {
+      const roles = await getKeycloakRoles();
+      const filteredRoles = roles.filter((r) => 
+        !r.name.startsWith("uma_") && 
+        !r.name.startsWith("default-roles") && 
+        r.name !== "offline_access"
+      );
+      res.json(filteredRoles);
+    } catch (error: any) {
+      console.error("Error al obtener roles de Keycloak:", error);
+      res.status(500).json({ error: error.message || "Error al obtener roles" });
     }
   });
 
