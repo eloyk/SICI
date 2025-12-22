@@ -103,7 +103,6 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AlertPanel
           alerts={alerts}
-          onViewDetails={(id) => console.log("Ver detalles:", id)}
         />
         <RecentActivity activities={activities} />
       </div>

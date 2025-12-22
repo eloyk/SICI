@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import DataTable, { Column } from "@/components/DataTable";
+import { WarehouseDetailDialog } from "@/components/DetailDialog";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -45,7 +46,9 @@ const columns: Column<WarehouseDisplay>[] = [
 
 export default function WarehousesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | undefined>();
+  const [viewingWarehouse, setViewingWarehouse] = useState<Warehouse | null>(null);
   const [formData, setFormData] = useState({ code: "", name: "", location: "", manager: "" });
   const { toast } = useToast();
 
@@ -123,6 +126,11 @@ export default function WarehousesPage() {
     deleteMutation.mutate(warehouse.id);
   };
 
+  const handleView = (warehouse: WarehouseDisplay) => {
+    setViewingWarehouse(warehouse as unknown as Warehouse);
+    setDetailDialogOpen(true);
+  };
+
   const handleSave = () => {
     const data = {
       code: formData.code,
@@ -164,7 +172,13 @@ export default function WarehousesPage() {
         onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        onView={(item) => console.log("Ver:", item)}
+        onView={handleView}
+      />
+
+      <WarehouseDetailDialog
+        open={detailDialogOpen}
+        onOpenChange={setDetailDialogOpen}
+        warehouse={viewingWarehouse}
       />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

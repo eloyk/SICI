@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import DataTable, { Column } from "@/components/DataTable";
 import ProductFormDialog from "@/components/ProductFormDialog";
+import { ProductDetailDialog } from "@/components/DetailDialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -44,7 +45,9 @@ const columns: Column<ProductDisplay>[] = [
 
 export default function ProductsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>();
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const { toast } = useToast();
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
@@ -102,6 +105,11 @@ export default function ProductsPage() {
     setDialogOpen(true);
   };
 
+  const handleView = (product: ProductDisplay) => {
+    setViewingProduct(product as unknown as Product);
+    setDetailDialogOpen(true);
+  };
+
   const handleDelete = (product: ProductDisplay) => {
     deleteMutation.mutate(product.id);
   };
@@ -139,7 +147,13 @@ export default function ProductsPage() {
         onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        onView={(item) => console.log("Ver:", item)}
+        onView={handleView}
+      />
+
+      <ProductDetailDialog
+        open={detailDialogOpen}
+        onOpenChange={setDetailDialogOpen}
+        product={viewingProduct}
       />
 
       <ProductFormDialog

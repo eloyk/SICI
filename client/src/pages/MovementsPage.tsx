@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import MovementForm from "@/components/MovementForm";
 import DataTable, { Column } from "@/components/DataTable";
+import { MovementDetailDialog } from "@/components/DetailDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -83,6 +84,8 @@ const columns: Column<MovementDisplay>[] = [
 export default function MovementsPage() {
   const [location] = useLocation();
   const [showForm, setShowForm] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [viewingMovement, setViewingMovement] = useState<Movement | null>(null);
   const { toast } = useToast();
 
   const pathParts = location.split("/");
@@ -134,6 +137,11 @@ export default function MovementsPage() {
     createMutation.mutate(data);
   };
 
+  const handleView = (movement: MovementDisplay) => {
+    setViewingMovement(movement as unknown as Movement);
+    setDetailDialogOpen(true);
+  };
+
   const typeLabels: Record<string, string> = {
     entradas: "Entradas de Inventario",
     salidas: "Salidas de Inventario",
@@ -182,7 +190,13 @@ export default function MovementsPage() {
         columns={columns}
         searchPlaceholder="Buscar movimientos..."
         getRowId={(item) => item.id}
-        onView={(item) => console.log("Ver:", item)}
+        onView={handleView}
+      />
+
+      <MovementDetailDialog
+        open={detailDialogOpen}
+        onOpenChange={setDetailDialogOpen}
+        movement={viewingMovement}
       />
     </div>
   );

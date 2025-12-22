@@ -184,6 +184,15 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/movements/:id/details", async (req, res) => {
+    try {
+      const details = await storage.getMovementDetails(req.params.id);
+      res.json(details);
+    } catch (error) {
+      res.status(500).json({ error: "Error al obtener detalles del movimiento" });
+    }
+  });
+
   app.post("/api/movements", async (req, res) => {
     try {
       const { details, ...movementData } = req.body;

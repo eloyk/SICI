@@ -53,7 +53,6 @@ export default function StockPage() {
       <StockTable
         data={tableData}
         warehouses={warehouseOptions}
-        onViewHistory={(item) => console.log("Ver historial:", item)}
       />
     </div>
   );
