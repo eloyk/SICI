@@ -5,6 +5,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import connectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
 import jwt from "jsonwebtoken";
+import { storage } from "./storage";
 
 const PgSession = connectPgSimple(session);
 
@@ -134,7 +135,32 @@ export function setupAuth(app: Express): void {
       failureRedirect: "/auth/login",
       failureMessage: true,
     }),
-    (req, res) => {
+    async (req, res) => {
+      if (req.user) {
+        try {
+          const keycloakRoles = req.user.roles || [];
+          let localRole = "consulta";
+          if (keycloakRoles.includes("Administrador")) {
+            localRole = "admin";
+          } else if (keycloakRoles.includes("Supervisor")) {
+            localRole = "supervisor";
+          } else if (keycloakRoles.includes("Operador")) {
+            localRole = "operador";
+          }
+          
+          await storage.upsertUser({
+            id: req.user.id,
+            username: req.user.username,
+            password: "keycloak-managed",
+            name: req.user.name,
+            email: req.user.email,
+            role: localRole as any,
+            isActive: true,
+          });
+        } catch (error) {
+          console.error("Error syncing user to local database:", error);
+        }
+      }
       res.redirect("/");
     }
   );
