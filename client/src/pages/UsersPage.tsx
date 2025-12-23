@@ -189,6 +189,30 @@ export default function UsersPage() {
   const appRoles = roles.filter(r => Object.keys(roleLabels).includes(r.name));
 
   if (usersError) {
+    const errorMessage = (usersError as any)?.message || "";
+    const isPermissionError = errorMessage.includes("403") || errorMessage.includes("permisos");
+    
+    if (isPermissionError) {
+      return (
+        <div className="p-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-destructive">Acceso Denegado</CardTitle>
+              <CardDescription>
+                No tienes permisos para acceder a la gestion de usuarios.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Solo los usuarios con rol de Administrador pueden gestionar usuarios y roles.
+                Contacta a un administrador si necesitas acceso.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    
     return (
       <div className="p-6">
         <Card>
