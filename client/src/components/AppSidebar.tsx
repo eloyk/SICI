@@ -21,10 +21,23 @@ import {
   ClipboardList,
   FileBarChart,
   Users,
-  Shield,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
-const menuGroups = [
+type MenuItem = {
+  title: string;
+  icon: typeof LayoutDashboard;
+  url: string;
+  roles?: string[];
+};
+
+type MenuGroup = {
+  label: string;
+  items: MenuItem[];
+  roles?: string[];
+};
+
+const menuGroups: MenuGroup[] = [
   {
     label: "Principal",
     items: [
@@ -33,6 +46,7 @@ const menuGroups = [
   },
   {
     label: "Catálogos",
+    roles: ["Administrador", "Supervisor"],
     items: [
       { title: "Productos", icon: Package, url: "/productos" },
       { title: "Almacenes", icon: Warehouse, url: "/almacenes" },
@@ -40,6 +54,7 @@ const menuGroups = [
   },
   {
     label: "Movimientos",
+    roles: ["Administrador", "Supervisor", "Operador"],
     items: [
       { title: "Entradas", icon: ArrowDownLeft, url: "/movimientos/entradas" },
       { title: "Salidas", icon: ArrowUpRight, url: "/movimientos/salidas" },
@@ -55,12 +70,14 @@ const menuGroups = [
   },
   {
     label: "Reportes",
+    roles: ["Administrador", "Supervisor"],
     items: [
       { title: "Reportes", icon: FileBarChart, url: "/reportes" },
     ],
   },
   {
     label: "Administración",
+    roles: ["Administrador"],
     items: [
       { title: "Usuarios", icon: Users, url: "/users" },
     ],
@@ -69,6 +86,7 @@ const menuGroups = [
 
 export default function AppSidebar() {
   const [location] = useLocation();
+  const { hasAnyRole } = useAuth();
 
   return (
     <Sidebar>
@@ -84,12 +102,16 @@ export default function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        {menuGroups.map((group) => (
+        {menuGroups
+          .filter((group) => !group.roles || hasAnyRole(...group.roles))
+          .map((group) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {group.items.map((item) => {
+                {group.items
+                  .filter((item) => !item.roles || hasAnyRole(...item.roles))
+                  .map((item) => {
                   const isActive = location === item.url || 
                     (item.url !== "/" && location.startsWith(item.url));
                   return (

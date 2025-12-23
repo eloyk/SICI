@@ -19,19 +19,49 @@ import UsersPage from "@/pages/UsersPage";
 import LoginPage from "@/pages/LoginPage";
 import NotFound from "@/pages/not-found";
 
+function ProtectedRoute({ 
+  component: Component, 
+  roles 
+}: { 
+  component: React.ComponentType; 
+  roles?: string[] 
+}) {
+  return (
+    <RequireAuth roles={roles}>
+      <Component />
+    </RequireAuth>
+  );
+}
+
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
-      <Route path="/productos" component={ProductsPage} />
-      <Route path="/almacenes" component={WarehousesPage} />
-      <Route path="/movimientos/entradas" component={MovementsPage} />
-      <Route path="/movimientos/salidas" component={MovementsPage} />
-      <Route path="/movimientos/transferencias" component={MovementsPage} />
-      <Route path="/movimientos/ajustes" component={MovementsPage} />
+      <Route path="/productos">
+        <ProtectedRoute component={ProductsPage} roles={["Administrador", "Supervisor"]} />
+      </Route>
+      <Route path="/almacenes">
+        <ProtectedRoute component={WarehousesPage} roles={["Administrador", "Supervisor"]} />
+      </Route>
+      <Route path="/movimientos/entradas">
+        <ProtectedRoute component={MovementsPage} roles={["Administrador", "Supervisor", "Operador"]} />
+      </Route>
+      <Route path="/movimientos/salidas">
+        <ProtectedRoute component={MovementsPage} roles={["Administrador", "Supervisor", "Operador"]} />
+      </Route>
+      <Route path="/movimientos/transferencias">
+        <ProtectedRoute component={MovementsPage} roles={["Administrador", "Supervisor", "Operador"]} />
+      </Route>
+      <Route path="/movimientos/ajustes">
+        <ProtectedRoute component={MovementsPage} roles={["Administrador", "Supervisor", "Operador"]} />
+      </Route>
       <Route path="/existencias" component={StockPage} />
-      <Route path="/reportes" component={ReportsPage} />
-      <Route path="/users" component={UsersPage} />
+      <Route path="/reportes">
+        <ProtectedRoute component={ReportsPage} roles={["Administrador", "Supervisor"]} />
+      </Route>
+      <Route path="/users">
+        <ProtectedRoute component={UsersPage} roles={["Administrador"]} />
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
