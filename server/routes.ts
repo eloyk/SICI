@@ -201,7 +201,34 @@ export async function registerRoutes(
       const parsedMovement = insertMovementSchema.parse(movementData);
       const parsedDetails = z.array(insertMovementDetailSchema.omit({ movementId: true })).parse(details);
       
-      const userId = req.user?.id || storage.getSystemUserId();
+      let userId = storage.getSystemUserId();
+      
+      if (req.user?.id) {
+        const existingUser = await storage.getUser(req.user.id);
+        if (!existingUser) {
+          const keycloakRoles = req.user.roles || [];
+          let localRole = "consulta";
+          if (keycloakRoles.includes("Administrador")) {
+            localRole = "admin";
+          } else if (keycloakRoles.includes("Supervisor")) {
+            localRole = "supervisor";
+          } else if (keycloakRoles.includes("Operador")) {
+            localRole = "operador";
+          }
+          
+          await storage.upsertUser({
+            id: req.user.id,
+            username: req.user.username,
+            password: "keycloak-managed",
+            name: req.user.name,
+            email: req.user.email,
+            role: localRole as any,
+            isActive: true,
+          });
+        }
+        userId = req.user.id;
+      }
+      
       const movement = await storage.createMovement(parsedMovement, parsedDetails as any, userId);
       res.status(201).json(movement);
     } catch (error) {
