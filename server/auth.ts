@@ -184,8 +184,31 @@ export function setupAuth(app: Express): void {
     });
   });
 
-  app.get("/auth/me", (req, res) => {
+  app.get("/auth/me", async (req, res) => {
     if (req.isAuthenticated() && req.user) {
+      try {
+        const keycloakRoles = req.user.roles || [];
+        let localRole = "consulta";
+        if (keycloakRoles.includes("Administrador")) {
+          localRole = "admin";
+        } else if (keycloakRoles.includes("Supervisor")) {
+          localRole = "supervisor";
+        } else if (keycloakRoles.includes("Operador")) {
+          localRole = "operador";
+        }
+        
+        await storage.upsertUser({
+          id: req.user.id,
+          username: req.user.username,
+          password: "keycloak-managed",
+          name: req.user.name,
+          email: req.user.email,
+          role: localRole as any,
+          isActive: true,
+        });
+      } catch (error) {
+        console.error("Error syncing user on /auth/me:", error);
+      }
       res.json(req.user);
     } else {
       res.status(401).json({ error: "No autenticado" });
