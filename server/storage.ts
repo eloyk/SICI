@@ -17,7 +17,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  upsertUser(user: InsertUser): Promise<User>;
+  upsertUser(id: string, user: InsertUser): Promise<User>;
   getUsers(): Promise<User[]>;
   updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
@@ -88,10 +88,10 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async upsertUser(insertUser: InsertUser): Promise<User> {
+  async upsertUser(id: string, insertUser: InsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
-      .values(insertUser)
+      .values({ ...insertUser, id })
       .onConflictDoUpdate({
         target: users.id,
         set: {

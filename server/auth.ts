@@ -148,8 +148,7 @@ export function setupAuth(app: Express): void {
             localRole = "operador";
           }
           
-          await storage.upsertUser({
-            id: req.user.id,
+          await storage.upsertUser(req.user.id, {
             username: req.user.username,
             password: "keycloak-managed",
             name: req.user.name,
@@ -197,8 +196,7 @@ export function setupAuth(app: Express): void {
           localRole = "operador";
         }
         
-        await storage.upsertUser({
-          id: req.user.id,
+        await storage.upsertUser(req.user.id, {
           username: req.user.username,
           password: "keycloak-managed",
           name: req.user.name,

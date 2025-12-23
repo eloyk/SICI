@@ -34,7 +34,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/products", requireAuth, async (req, res) => {
+  app.post("/api/products", requireRole("Administrador", "Supervisor"), async (req, res) => {
     try {
       const data = insertProductSchema.parse(req.body);
       const product = await storage.createProduct(data);
@@ -47,7 +47,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/products/:id", requireAuth, async (req, res) => {
+  app.patch("/api/products/:id", requireRole("Administrador", "Supervisor"), async (req, res) => {
     try {
       const data = insertProductSchema.partial().parse(req.body);
       const product = await storage.updateProduct(req.params.id, data);
@@ -63,7 +63,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/products/:id", requireAuth, async (req, res) => {
+  app.delete("/api/products/:id", requireRole("Administrador", "Supervisor"), async (req, res) => {
     try {
       await storage.deleteProduct(req.params.id);
       res.status(204).send();
@@ -81,7 +81,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/categories", requireAuth, async (req, res) => {
+  app.post("/api/categories", requireRole("Administrador", "Supervisor"), async (req, res) => {
     try {
       const data = insertCategorySchema.parse(req.body);
       const category = await storage.createCategory(data);
@@ -115,7 +115,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/warehouses", requireAuth, async (req, res) => {
+  app.post("/api/warehouses", requireRole("Administrador", "Supervisor"), async (req, res) => {
     try {
       const data = insertWarehouseSchema.parse(req.body);
       const warehouse = await storage.createWarehouse(data);
@@ -128,7 +128,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/warehouses/:id", requireAuth, async (req, res) => {
+  app.patch("/api/warehouses/:id", requireRole("Administrador", "Supervisor"), async (req, res) => {
     try {
       const data = insertWarehouseSchema.partial().parse(req.body);
       const warehouse = await storage.updateWarehouse(req.params.id, data);
@@ -144,7 +144,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/warehouses/:id", requireAuth, async (req, res) => {
+  app.delete("/api/warehouses/:id", requireRole("Administrador", "Supervisor"), async (req, res) => {
     try {
       await storage.deleteWarehouse(req.params.id);
       res.status(204).send();
@@ -195,7 +195,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/movements", requireAuth, async (req, res) => {
+  app.post("/api/movements", requireRole("Administrador", "Supervisor", "Operador"), async (req, res) => {
     try {
       const { details, ...movementData } = req.body;
       const parsedMovement = insertMovementSchema.parse(movementData);
