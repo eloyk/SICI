@@ -31,8 +31,7 @@ function Router() {
       <Route path="/movimientos/ajustes" component={MovementsPage} />
       <Route path="/existencias" component={StockPage} />
       <Route path="/reportes" component={ReportsPage} />
-      <Route path="/usuarios" component={UsersPage} />
-      <Route path="/roles" component={UsersPage} />
+      <Route path="/users" component={UsersPage} />
       <Route component={NotFound} />
     </Switch>
   );

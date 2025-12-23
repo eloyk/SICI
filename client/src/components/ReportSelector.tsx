@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FileBarChart, FileText, Download, Printer } from "lucide-react";
+import { FileBarChart, FileText, Download, Printer, Loader2, Package, AlertTriangle, ArrowLeftRight, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Warehouse, Product } from "@shared/schema";
 
 interface ReportType {
   id: string;
@@ -21,15 +23,24 @@ interface ReportType {
 }
 
 const reportTypes: ReportType[] = [
-  { id: "inventory", name: "Inventario General", description: "Existencias actuales por almacén", icon: FileBarChart },
-  { id: "valued", name: "Inventario Valorizado", description: "Stock con valorización económica", icon: FileText },
-  { id: "movements", name: "Movimientos", description: "Historial de movimientos por período", icon: FileBarChart },
-  { id: "lowstock", name: "Bajo Stock", description: "Productos bajo stock mínimo", icon: FileText },
-  { id: "kardex", name: "Kardex", description: "Trazabilidad por producto", icon: FileBarChart },
+  { id: "inventory", name: "Inventario General", description: "Existencias actuales por almacen", icon: ClipboardList },
+  { id: "valued", name: "Inventario Valorizado", description: "Stock con valorizacion economica", icon: FileText },
+  { id: "movements", name: "Movimientos", description: "Historial de movimientos por periodo", icon: ArrowLeftRight },
+  { id: "lowstock", name: "Bajo Stock", description: "Productos bajo stock minimo", icon: AlertTriangle },
+  { id: "kardex", name: "Kardex", description: "Trazabilidad por producto", icon: Package },
 ];
 
 interface ReportSelectorProps {
-  onGenerate?: (params: unknown) => void;
+  onGenerate?: (params: ReportParams) => void | Promise<void>;
+}
+
+interface ReportParams {
+  reportType: string;
+  warehouse: string;
+  dateFrom: string;
+  dateTo: string;
+  productId: string;
+  format: "pdf" | "excel";
 }
 
 export default function ReportSelector({ onGenerate }: ReportSelectorProps) {
@@ -37,18 +48,40 @@ export default function ReportSelector({ onGenerate }: ReportSelectorProps) {
   const [warehouse, setWarehouse] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [product, setProduct] = useState("");
+  const [productId, setProductId] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  // todo: remove mock functionality
-  const warehouses = [
-    { id: "1", name: "Almacén Central" },
-    { id: "2", name: "Sucursal Norte" },
-    { id: "3", name: "Sucursal Sur" },
-  ];
+  const { data: warehouses = [] } = useQuery<Warehouse[]>({
+    queryKey: ["/api/warehouses"],
+  });
 
-  const handleGenerate = (format: "pdf" | "excel") => {
-    onGenerate?.({ reportType: selectedReport, warehouse, dateFrom, dateTo, product, format });
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ["/api/products"],
+  });
+
+  const handleGenerate = async (format: "pdf" | "excel") => {
+    if (!selectedReport) return;
+    
+    setIsGenerating(true);
+    try {
+      const params: ReportParams = { 
+        reportType: selectedReport, 
+        warehouse, 
+        dateFrom, 
+        dateTo, 
+        productId, 
+        format 
+      };
+      
+      if (onGenerate) {
+        await onGenerate(params);
+      }
+    } finally {
+      setIsGenerating(false);
+    }
   };
+
+  const activeWarehouses = warehouses.filter(w => w.isActive);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -84,25 +117,25 @@ export default function ReportSelector({ onGenerate }: ReportSelectorProps) {
 
       <Card className="lg:col-span-2">
         <CardHeader>
-          <CardTitle className="text-lg">Parámetros del Reporte</CardTitle>
+          <CardTitle className="text-lg">Parametros del Reporte</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {!selectedReport ? (
             <div className="h-48 flex items-center justify-center text-muted-foreground">
-              Selecciona un tipo de reporte para configurar los parámetros
+              Selecciona un tipo de reporte para configurar los parametros
             </div>
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="warehouse">Almacén</Label>
+                  <Label htmlFor="warehouse">Almacen</Label>
                   <Select value={warehouse} onValueChange={setWarehouse}>
                     <SelectTrigger id="warehouse" data-testid="select-report-warehouse">
                       <SelectValue placeholder="Seleccionar" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos los almacenes</SelectItem>
-                      {warehouses.map((wh) => (
+                      {activeWarehouses.map((wh) => (
                         <SelectItem key={wh.id} value={wh.id}>
                           {wh.name}
                         </SelectItem>
@@ -139,24 +172,46 @@ export default function ReportSelector({ onGenerate }: ReportSelectorProps) {
                 {selectedReport === "kardex" && (
                   <div className="space-y-2">
                     <Label htmlFor="product">Producto</Label>
-                    <Input
-                      id="product"
-                      placeholder="Código o nombre del producto"
-                      value={product}
-                      onChange={(e) => setProduct(e.target.value)}
-                      data-testid="input-product-kardex"
-                    />
+                    <Select value={productId} onValueChange={setProductId}>
+                      <SelectTrigger id="product" data-testid="select-product-kardex">
+                        <SelectValue placeholder="Seleccionar producto" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {products.filter(p => p.isActive).map((product) => (
+                          <SelectItem key={product.id} value={product.id}>
+                            {product.code} - {product.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
               </div>
 
               <div className="flex justify-end gap-4 pt-4 border-t">
-                <Button variant="outline" onClick={() => handleGenerate("excel")} data-testid="button-generate-excel">
-                  <Download className="h-4 w-4 mr-2" />
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleGenerate("excel")} 
+                  disabled={isGenerating}
+                  data-testid="button-generate-excel"
+                >
+                  {isGenerating ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
                   Exportar Excel
                 </Button>
-                <Button onClick={() => handleGenerate("pdf")} data-testid="button-generate-pdf">
-                  <Printer className="h-4 w-4 mr-2" />
+                <Button 
+                  onClick={() => handleGenerate("pdf")} 
+                  disabled={isGenerating}
+                  data-testid="button-generate-pdf"
+                >
+                  {isGenerating ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Printer className="h-4 w-4 mr-2" />
+                  )}
                   Generar PDF
                 </Button>
               </div>

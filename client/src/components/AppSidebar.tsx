@@ -62,8 +62,7 @@ const menuGroups = [
   {
     label: "Administración",
     items: [
-      { title: "Usuarios", icon: Users, url: "/usuarios" },
-      { title: "Roles", icon: Shield, url: "/roles" },
+      { title: "Usuarios", icon: Users, url: "/users" },
     ],
   },
 ];
