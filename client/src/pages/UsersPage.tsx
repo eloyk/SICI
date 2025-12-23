@@ -37,10 +37,10 @@ interface KeycloakRole {
 }
 
 const roleLabels: Record<string, string> = {
-  admin: "Administrador",
-  supervisor: "Supervisor",
-  operador: "Operador",
-  consulta: "Consulta",
+  Administrador: "Administrador",
+  Supervisor: "Supervisor",
+  Operador: "Operador",
+  Consulta: "Consulta",
 };
 
 const columns: Column<KeycloakUser>[] = [
@@ -69,7 +69,7 @@ const columns: Column<KeycloakUser>[] = [
     key: "role",
     header: "Rol Principal",
     render: (item) => (
-      <Badge variant={item.role === "admin" ? "default" : "secondary"}>
+      <Badge variant={item.role === "Administrador" ? "default" : "secondary"}>
         {roleLabels[item.role] || item.role}
       </Badge>
     ),

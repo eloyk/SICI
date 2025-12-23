@@ -234,7 +234,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/users", requireRole("admin"), async (req, res) => {
+  app.get("/api/users", requireRole("Administrador"), async (req, res) => {
     try {
       const users = await getUsersWithRoles();
       const formattedUsers = users.map((u) => ({
@@ -242,7 +242,7 @@ export async function registerRoutes(
         username: u.username,
         email: u.email || "",
         name: `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.username,
-        role: u.roles.find((r) => ["admin", "supervisor", "operador", "consulta"].includes(r)) || "consulta",
+        role: u.roles.find((r) => ["Administrador", "Supervisor", "Operador", "Consulta"].includes(r)) || "Consulta",
         roles: u.roles,
         status: u.enabled ? "activo" : "inactivo",
       }));
@@ -253,7 +253,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/users/:id/roles", requireRole("admin"), async (req, res) => {
+  app.get("/api/users/:id/roles", requireRole("Administrador"), async (req, res) => {
     try {
       const roles = await getUserRoles(req.params.id);
       res.json(roles);
@@ -263,7 +263,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/users/:id/roles", requireRole("admin"), async (req, res) => {
+  app.post("/api/users/:id/roles", requireRole("Administrador"), async (req, res) => {
     try {
       const { roleId, roleName } = req.body;
       if (!roleId || !roleName) {
@@ -277,7 +277,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/users/:id/roles", requireRole("admin"), async (req, res) => {
+  app.delete("/api/users/:id/roles", requireRole("Administrador"), async (req, res) => {
     try {
       const { roleId, roleName } = req.body;
       if (!roleId || !roleName) {
@@ -291,7 +291,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/roles", requireRole("admin"), async (req, res) => {
+  app.get("/api/roles", requireRole("Administrador"), async (req, res) => {
     try {
       const roles = await getKeycloakRoles();
       const filteredRoles = roles.filter((r) => 
